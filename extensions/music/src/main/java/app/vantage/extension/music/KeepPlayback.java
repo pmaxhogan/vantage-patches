@@ -44,6 +44,17 @@ public final class KeepPlayback {
      */
     private static final long WINDOW_MS = 5_000L;
 
+    /**
+     * STOPPAGE_DIRECTOR_RESET_INTERNALLY, the reason the failing teardown passes
+     * to stopVideo. Derived from the obfuscated reason-name mapper (caor.a(I) in
+     * 9.15.51): its packed-switch starts at 1 and this is the fifth label, and
+     * the reproduction logs read "MedialibPlayer.stopVideo(),
+     * STOPPAGE_DIRECTOR_RESET_INTERNALLY". Only this reason is ever swallowed,
+     * so a user asking the app to stop (reason 33 from the STOP media key,
+     * observed on the emulator) is never affected.
+     */
+    private static final int STOPPAGE_DIRECTOR_RESET_INTERNALLY = 5;
+
     /** Set true to log every hook with a stack trace. */
     private static final boolean DIAG = false;
 
@@ -105,7 +116,7 @@ public final class KeepPlayback {
      * @return true to swallow the stop
      */
     public static boolean onBeforeStopVideo(int reason) {
-        boolean suppress = isWindowOpen();
+        boolean suppress = reason == STOPPAGE_DIRECTOR_RESET_INTERNALLY && isWindowOpen();
         if (DIAG) {
             Log.w(TAG, "stopVideo reason=" + reason + " suppress=" + suppress,
                     new Throwable("stopVideo"));
