@@ -49,6 +49,20 @@ landing seconds after a system destroy still stops playback. Everything else
 about the destroy proceeds untouched, so the activity is still released and its
 memory still reclaimed.
 
+### Clone with badge (Claude)
+
+Turns the Claude app into an installable copy with its own package name so
+several accounts can be signed in at once. Options: `packageName`, `appLabel`,
+`badgeNumber` (1-9) and `iconColor` (`#RRGGBB`). The resource half renames the
+package, every content-provider authority and custom permission, sets the label,
+and swaps the adaptive icon for one on the chosen color with the number stamped
+on it. The bytecode half merges `extensions/claude` and starts a small pill
+overlay from `Application.onCreate` that pins the same number to the top corner
+of every screen, so the copies can be told apart while in use.
+
+`badgeNumber` is an integer on purpose: morphe-cli parses a bare digit passed
+with `-O` as a number and silently ignores it for a string option.
+
 ## Layout
 
     patches/src/main/kotlin/app/vantage/patches/<app>/...   patch declarations (Kotlin)
