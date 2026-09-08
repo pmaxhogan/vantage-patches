@@ -6,6 +6,7 @@ import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.ResourcePatch
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.patch.intOption
 import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.patch.stringOption
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
@@ -43,7 +44,7 @@ private val cloneBadgeBytecodePatch =
 
         execute {
           try {
-            val label = cloneWithBadgePatch.options["badgeLabel"]?.value as? String ?: ""
+            val label = (cloneWithBadgePatch.options["badgeNumber"]?.value as? Int)?.toString() ?: ""
 
             val onCreate = try {
                 ApplicationOnCreateFingerprint.method
@@ -113,13 +114,15 @@ val cloneWithBadgePatch: ResourcePatch =
             required = true,
         ) { !it.isNullOrBlank() }
 
-        val badgeLabel by stringOption(
-            key = "badgeLabel",
-            default = "2",
-            title = "Badge label",
-            description = "Text in the corner pill. A single digit 1-9 is also stamped on the icon.",
+        // An integer on purpose: morphe-cli parses a bare digit on the command
+        // line as a number and silently ignores it for a string option.
+        val badgeNumber by intOption(
+            key = "badgeNumber",
+            default = 2,
+            title = "Badge number",
+            description = "Number shown in the corner pill and stamped on the icon (1-9).",
             required = true,
-        ) { !it.isNullOrBlank() && it.length <= 3 }
+        ) { it != null && it in 1..9 }
 
         val iconColor by stringOption(
             key = "iconColor",
@@ -133,7 +136,7 @@ val cloneWithBadgePatch: ResourcePatch =
             val newPackage = packageName!!
             renamePackage(newPackage)
             setAppLabel(appLabel!!)
-            replaceLauncherIcon(iconColor!!, badgeLabel!!)
+            replaceLauncherIcon(iconColor!!, badgeNumber!!.toString())
         }
     }
 
