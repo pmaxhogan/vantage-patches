@@ -1,9 +1,15 @@
 # vantage-patches
 
 Vantage-only [morphe](https://github.com/MorpheApp) patches, published as a
-`.mpp` bundle that [pmaxhogan/vantage](https://github.com/pmaxhogan/vantage)
-**stacks on top of** the anddea bundle. `morphe-cli patch` accepts repeated
-`--patches`, so this bundle adds patches without forking anddea.
+single `.mpp` bundle that [pmaxhogan/vantage](https://github.com/pmaxhogan/vantage)
+**stacks on top of** whichever upstream bundle a variant already uses.
+`morphe-cli patch` accepts repeated `--patches`, so this adds patches without
+forking anddea, morphe or piko.
+
+One bundle serves every app. Each patch declares its own `Compatibility`, and a
+patch only applies to the app it names, but morphe-cli still offers every patch
+in the bundle to every build - so **each consuming variant's options file must
+explicitly disable the patches meant for other apps**, or they apply by default.
 
 Everything here is deliberately small. Anything that belongs upstream should go
 upstream instead; this repo is for patches that only Vantage wants.
@@ -45,8 +51,22 @@ memory still reclaimed.
 
 ## Layout
 
-    patches/      the morphe patch declarations (Kotlin)
-    extensions/   the code injected into the app (Java, namespace app.vantage.extension.*)
+    patches/src/main/kotlin/app/vantage/patches/<app>/...   patch declarations (Kotlin)
+    extensions/<leaf>/                                      code injected into the app (Java)
+
+One `extensions/<leaf>` module per app that needs injected code. A module gets
+its namespace from `defaultNamespace` plus its directory name, so
+`extensions/music` becomes `app.vantage.extension.music`; do not set `namespace`
+in the module itself. Two things every extension module needs and neither is
+obvious: **no** `plugins` block (the settings plugin already applies AGP, and
+declaring `com.android.library` fails because it applies
+`com.android.application`), and a `src/main/AndroidManifest.xml` containing just
+`<manifest/>` (AGP fails on the missing input otherwise).
+
+Patches pull their extension in with `extendWith("extensions/<leaf>.mpe")`.
+Deliberately not `sharedExtensionPatch`, which also demands an
+`extensions/shared.mpe` and hooks `Application.onCreate` - a hook this bundle
+does not need and which is untested alongside the upstream bundle's own.
 
 The extension namespace must **not** be `app.morphe.extension.*`: this bundle is
 merged into the same APK as the anddea bundle, which already ships classes under

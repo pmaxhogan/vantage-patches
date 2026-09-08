@@ -1,9 +1,13 @@
 name: Build MPP
 
 # Builds the Vantage-only .mpp and publishes it as a GitHub release asset that
-# pmaxhogan/vantage consumes. This bundle is STACKED on top of the anddea bundle
-# (morphe-cli accepts repeated --patches), it does not replace it - so it must
-# stay small and must never redefine anything anddea already patches.
+# pmaxhogan/vantage consumes. The bundle carries every Vantage-only patch, for
+# any app, and is STACKED on top of whichever upstream bundle a variant already
+# uses (morphe-cli accepts repeated --patches) rather than replacing it - so it
+# must stay small and must never redefine anything upstream already patches.
+#
+# Because one bundle serves several apps, each consuming variant's options file
+# has to explicitly disable the patches meant for the other apps. See the README.
 #
 # Modelled on pmaxhogan/piko's build-mpp.yml. Differences: there is no upstream
 # to stay byte-identical with, so the version in gradle.properties is the real
@@ -12,7 +16,7 @@ name: Build MPP
 # PRERELEASE GATE: the repository variable MPP_PRERELEASE ("true"/"false")
 # decides whether the release is marked prerelease. vantage's build script reads
 # /releases/latest, which skips prereleases, so while the variable is "true" a
-# new .mpp never reaches the Vantage Music nightly. Use it to stage a change the
+# new .mpp never reaches the Vantage nightly builds. Use it to stage a change the
 # vantage build scripts are not ready for yet.
 
 on:
