@@ -1,6 +1,7 @@
 package app.vantage.extension.music;
 
 import android.app.Activity;
+import android.os.SystemClock;
 import android.util.Log;
 
 /**
@@ -13,9 +14,15 @@ import android.util.Log;
  * ActivityTaskManager.getService().releaseSomeActivities(mAppThread). The system
  * then runs WindowProcessController.releaseSomeActivities("low-mem"), which
  * calls ActivityRecord.destroyImmediately("low-mem") on every activity of that
- * process that is non-visible, stopped and has saved state. That is the only
- * framework path that destroys an activity WITHOUT finishing it, so
- * Activity.isFinishing() is false there and true for every user-initiated close.
+ * process that is non-visible, stopped and has saved state. It is the only path
+ * that destroys a STOPPED, NON-VISIBLE activity without finishing it, so
+ * isFinishing() is false there and true for every user-initiated close.
+ *
+ * <p>isFinishing() alone is not enough, though: a configuration-change relaunch
+ * (rotation, dark mode, locale) also destroys the activity with isFinishing()
+ * false, and there the teardown is followed immediately by a fresh onCreate, so
+ * suppressing anything would be wrong. isChangingConfigurations() separates the
+ * two.
  *
  * <p>What YouTube Music then does: MusicActivity.onDestroy tears down its peer
  * graph, the media session is deactivated, MedialibPlayer.stopVideo runs with
@@ -45,15 +52,18 @@ public final class KeepPlayback {
     private static final long WINDOW_MS = 5_000L;
 
     /**
-     * STOPPAGE_DIRECTOR_RESET_INTERNALLY, the reason the failing teardown passes
-     * to stopVideo. Derived from the obfuscated reason-name mapper (caor.a(I) in
-     * 9.15.51): its packed-switch starts at 1 and this is the fifth label, and
-     * the reproduction logs read "MedialibPlayer.stopVideo(),
-     * STOPPAGE_DIRECTOR_RESET_INTERNALLY". Only this reason is ever swallowed,
-     * so a user asking the app to stop (reason 33 from the STOP media key,
-     * observed on the emulator) is never affected.
+     * The one stoppage reason ever swallowed: the reason the failing teardown
+     * passes to stopVideo, as seen in the reproduction logs
+     * ("MedialibPlayer.stopVideo(), STOPPAGE_DIRECTOR_RESET_INTERNALLY").
+     *
+     * <p>Compared as a NAME, not as an ordinal. The patch injects a call to the
+     * app's own reason-name mapper and hands the result here, so nothing in
+     * this patch depends on the enum's numbering surviving an app update. A
+     * user asking the app to stop arrives as a different name (ordinal 33 on
+     * the emulator) and is never affected.
      */
-    private static final int STOPPAGE_DIRECTOR_RESET_INTERNALLY = 5;
+    private static final String STOPPAGE_DIRECTOR_RESET_INTERNALLY =
+            "STOPPAGE_DIRECTOR_RESET_INTERNALLY";
 
     /** Set true to log every hook with a stack trace. */
     private static final boolean DIAG = false;
@@ -70,30 +80,33 @@ public final class KeepPlayback {
      */
     public static void onActivityDestroy(Object activity) {
         boolean finishing = true;
+        boolean changingConfigurations = false;
         try {
             if (activity instanceof Activity) {
-                finishing = ((Activity) activity).isFinishing();
+                Activity a = (Activity) activity;
+                finishing = a.isFinishing();
+                changingConfigurations = a.isChangingConfigurations();
             }
         } catch (Exception ex) {
             // Fail closed: treat an unreadable state as a user-initiated close
             // so playback stops the way it does today.
-            Log.e(TAG, "isFinishing() failed, not suppressing", ex);
+            Log.e(TAG, "could not read the activity state, not suppressing", ex);
             finishing = true;
+            changingConfigurations = false;
         }
 
-        if (finishing) {
-            // Back press, or a swipe from recents: the user closed the app, so
-            // let the normal teardown stop playback.
-            suppressUntil = 0L;
-        } else {
-            suppressUntil = System.currentTimeMillis() + WINDOW_MS;
-        }
+        boolean suppress = !finishing && !changingConfigurations;
+        // finishing: back press or a swipe from recents, the user closed the app.
+        // changingConfigurations: a rotation or theme change, a fresh onCreate
+        // follows immediately and the app re-establishes its own state.
+        suppressUntil = suppress ? SystemClock.elapsedRealtime() + WINDOW_MS : 0L;
 
         // Logged unconditionally: a MusicActivity destroy is rare, and this one
         // line is what tells a "playback died again" report apart from a
         // user-initiated close.
         Log.i(TAG, "MusicActivity destroy: finishing=" + finishing
-                + " suppressPlaybackTeardown=" + !finishing);
+                + " changingConfigurations=" + changingConfigurations
+                + " suppressPlaybackTeardown=" + suppress);
         if (DIAG) {
             Log.w(TAG, "onActivityDestroy stack", new Throwable("onDestroy"));
         }
@@ -110,19 +123,20 @@ public final class KeepPlayback {
     }
 
     /**
-     * Called first thing in MedialibPlayer.stopVideo(int reason).
+     * Called first thing in MedialibPlayer.stopVideo(int reason), with the
+     * reason already mapped to its name by the app's own mapper.
      *
-     * @param reason the STOPPAGE_* enum ordinal
+     * @param reasonName the STOPPAGE_* name, or null if the mapper returned none
      * @return true to swallow the stop
      */
-    public static boolean onBeforeStopVideo(int reason) {
-        boolean suppress = reason == STOPPAGE_DIRECTOR_RESET_INTERNALLY && isWindowOpen();
+    public static boolean onBeforeStopVideo(String reasonName) {
+        boolean suppress = STOPPAGE_DIRECTOR_RESET_INTERNALLY.equals(reasonName) && isWindowOpen();
         if (DIAG) {
-            Log.w(TAG, "stopVideo reason=" + reason + " suppress=" + suppress,
+            Log.w(TAG, "stopVideo reason=" + reasonName + " suppress=" + suppress,
                     new Throwable("stopVideo"));
         }
         if (suppress) {
-            Log.i(TAG, "kept playback: swallowed stopVideo(" + reason
+            Log.i(TAG, "kept playback: swallowed stopVideo(" + reasonName
                     + ") after a system-initiated MusicActivity destroy");
         }
         return suppress;
@@ -149,7 +163,9 @@ public final class KeepPlayback {
     }
 
     private static boolean isWindowOpen() {
+        // elapsedRealtime, not currentTimeMillis: a wall-clock jump (NTP, the
+        // user changing the time) must not widen or close the window.
         long until = suppressUntil;
-        return until != 0L && System.currentTimeMillis() < until;
+        return until != 0L && SystemClock.elapsedRealtime() < until;
     }
 }

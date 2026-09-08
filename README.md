@@ -22,10 +22,12 @@ changed and the app's own ART heap sits above 3/4 of `Runtime.maxMemory()`, it
 calls `ActivityTaskManager.getService().releaseSomeActivities(mAppThread)`. The
 system then runs `WindowProcessController.releaseSomeActivities("low-mem")`,
 which calls `ActivityRecord.destroyImmediately("low-mem")` on every activity of
-that process that is non-visible, stopped and holds saved state. That is the
-only framework path that destroys an activity **without** finishing it, which is
-what makes `Activity.isFinishing()` a reliable "did the user ask for this?"
-signal.
+that process that is non-visible, stopped and holds saved state. It is the only
+path that destroys a **stopped, non-visible** activity without finishing it, so
+`Activity.isFinishing()` is false there and true for every user-initiated close.
+It is not the only destroy-without-finish in the framework, though: a
+configuration-change relaunch also reports `isFinishing()` false, so the gate
+checks `isChangingConfigurations()` too and suppresses nothing on a rotation.
 
 YouTube Music reacts to that destroy by deactivating its media session, running
 `MedialibPlayer.stopVideo` with `STOPPAGE_DIRECTOR_RESET_INTERNALLY`, dropping

@@ -2,17 +2,21 @@ package app.vantage.patches.music.keepplayback
 
 import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructionsWithLabels
-import app.morphe.patcher.patch.AppTarget
 import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.bytecodePatch
 
 private const val EXTENSION_CLASS = "Lapp/vantage/extension/music/KeepPlayback;"
 
+// No target versions listed on purpose. Every method this patch touches is
+// matched either by a non-obfuscated class name from AndroidManifest.xml or by
+// a log format string, and the one stoppage reason it cares about is compared
+// by name at runtime, so there is no ordinal or offset to go stale. If a future
+// Music release renames one of those strings the fingerprint simply fails and
+// the build stops with a PatchException, which is the failure we want.
 private val COMPATIBILITY_MUSIC =
     Compatibility(
         name = "YouTube Music",
         packageName = "com.google.android.apps.youtube.music",
-        targets = listOf(AppTarget(version = "9.15.51")),
     )
 
 @Suppress("unused")
@@ -35,11 +39,19 @@ val keepPlaybackOnActivityDestroyPatch =
                 "invoke-static { p0 }, $EXTENSION_CLASS->onActivityDestroy(Ljava/lang/Object;)V",
             )
 
-            // 2. Swallow the director's stopVideo inside that window.
+            // 2. Swallow the director's stopVideo inside that window. The
+            //    reason ordinal is run through the app's own reason-name mapper
+            //    first, so the extension can compare a name rather than a
+            //    number that an app update could renumber.
+            val reasonMapper = stoppageReasonNameFingerprint.originalMethod
+            val reasonMapperDescriptor =
+                "${reasonMapper.definingClass}->${reasonMapper.name}(I)Ljava/lang/String;"
             stopVideoFingerprint.method.addInstructionsWithLabels(
                 0,
                 """
-                invoke-static { p1 }, $EXTENSION_CLASS->onBeforeStopVideo(I)Z
+                invoke-static { p1 }, $reasonMapperDescriptor
+                move-result-object v0
+                invoke-static { v0 }, $EXTENSION_CLASS->onBeforeStopVideo(Ljava/lang/String;)Z
                 move-result v0
                 if-eqz v0, :vantage_keep_continue
                 return-void

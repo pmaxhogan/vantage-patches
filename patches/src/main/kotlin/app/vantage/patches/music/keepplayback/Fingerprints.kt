@@ -52,3 +52,17 @@ internal val playerServiceOnTaskRemovedFingerprint =
         returnType = "V",
         parameters = listOf("Landroid/content/Intent;"),
     )
+
+/**
+ * The static mapper that turns a stoppage-reason ordinal into its name
+ * (caor.a(I)Ljava/lang/String; in 9.15.51) - a generated proto-enum helper, so
+ * obfuscated, but it carries every reason name as a literal. Matching it lets
+ * the patch compare the reason by NAME at runtime instead of hardcoding an
+ * ordinal that an app update could renumber.
+ */
+internal val stoppageReasonNameFingerprint =
+    Fingerprint(
+        returnType = "Ljava/lang/String;",
+        parameters = listOf("I"),
+        strings = listOf("STOPPAGE_DIRECTOR_RESET_INTERNALLY"),
+    )
