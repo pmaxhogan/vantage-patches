@@ -85,6 +85,23 @@ Known limits: "Play all" and autoplay still skip the video, because the server
 leaves it out of the queue it builds; the row keeps its "!" thumbnail badge; and
 plays of these videos may not reach watch history.
 
+### Seek buttons for long tracks (YouTube Music)
+
+Gives any track longer than 20 minutes (option `minimumMinutes`) the
+notification layout YouTube Music uses for podcast episodes: rewind 10 s and
+forward 30 s instead of previous and next. Handy for DJ mixes, live sets and
+long talks that are uploaded as ordinary videos.
+
+Music keeps one seek-focused flag in its media-session state, and every custom
+action in the session reads it: the seek actions show while it is true, the
+skip actions while it is false. The app sets it from two booleans in the
+`/player` response's config, which the server only sends for podcasts. The
+patch hooks that one store, in the media-session presenter's
+`handleSequencerStageEvent`, and turns it on when the same player response's
+`videoDetails.lengthSeconds` is over the threshold. A short track, or a podcast
+the server already flagged, is left alone. Like a real podcast episode, a long
+track loses previous / next in the notification while it plays.
+
 ### Clone with badge (Claude)
 
 Turns the Claude app into an installable copy with its own package name so
