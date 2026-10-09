@@ -81,7 +81,7 @@ val longTrackSeekButtonsPatch =
     bytecodePatch(
         name = "Seek buttons for long tracks",
         description = "Shows the podcast-style rewind 10 s / forward 30 s buttons in the media " +
-            "notification, instead of previous / next, for any track longer than a set length.",
+            "notification, for any track longer than a set length.",
     ) {
         compatibleWith(COMPATIBILITY_MUSIC)
 

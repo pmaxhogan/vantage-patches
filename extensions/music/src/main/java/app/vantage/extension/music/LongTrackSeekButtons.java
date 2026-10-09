@@ -10,8 +10,8 @@ import android.util.Log;
  * <p>YouTube Music keeps one "seek-focused" flag in its media-session state
  * (baxh.J(Z) in 9.15.51). The flag is set from the player response's own
  * config (two booleans the server sends for podcast episodes), and every media
- * session custom action reads it: rewind 10 s and forward 30 s show while it is
- * true, skip previous / next while it is false. The patch runs the app's value
+ * session custom action reads it: rewind 10 s, forward 30 s, next and previous
+ * show while it is true; like, shuffle, repeat and dislike while it is false. The patch runs the app's value
  * through {@link #showSeekButtons} right before it is stored, so a long track
  * gets exactly the layout a podcast episode gets.
  */
