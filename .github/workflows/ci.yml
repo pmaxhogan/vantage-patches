@@ -1,0 +1,35 @@
+name: CI
+
+# PR gate that the Dependabot auto-merge workflow listens to. build-mpp.yml is
+# push-only and publishes a release, so it cannot double as this; this runs the
+# same Gradle build without the publish step.
+#
+# Needs no secrets: Dependabot PRs get no Actions secrets, only a read-only
+# GITHUB_TOKEN, which is enough to read the Morphe GitHub Packages registry.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build the .mpp
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :patches:buildAndroid --no-daemon --console=plain
